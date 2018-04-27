@@ -1,0 +1,83 @@
+#!/bin/sh
+# TimeTracker is a nerd-compliant time tracking system
+# Every time your tt it will open an editor for the previous time area
+# allowing you to describe what you did. After saving it it will open an 
+# editor for the next time period, allowing you to describe what you plan to
+# do. This is saved in a file with the timestamp of the start as the filename.
+# 
+# Optionally you can pass in the time you changed task. This is parsed by 
+# date -d, so can either be a time (eg tt "17:10") or a complete datestring 
+# (eg tt "2017-03-05 17:10"). If it already exists, you will edit the existing
+# entry
+# Additionally you can pass in -r to edit the most recent existing one
+#
+# To indicate that you're not working on anything, leave the field blank
+# Hopefully one day this may also include programs to analyze the time tracked
+
+if [[ -z "${XDG_CONFIG_HOME}" ]]; then
+	DIRECTORY=${HOME}/.config/tt
+else
+	DIRECTORY="${XDG_CONFIG_HOME}"tt
+fi
+mkdir -p $DIRECTORY
+
+
+# Set time from args
+PROJECT='?'
+TASK='Replace with a description of what you did'
+
+is_break=false
+if [[ $1 ]]; then
+	if [[ $1 == "-p" ]]; then
+		echo "Finding Previous"
+		TARGET_DATE=$(ls $DIRECTORY | grep $USER | tail -n1 | sed s/-${USER}$//)
+		if [[ $TARGET_DATE == "" ]]; then
+			echo "No Previous Entry"
+			exit 1
+		fi
+	elif [[ $1 == "-b" ]]; then
+		echo "Taking a break"
+		TARGET_DATE=$(date +%s)
+		is_break=true
+		PROJECT='Break'
+		TASK=''
+	else
+		echo "At time/date $1"
+		TARGET_DATE=$(date -d "$1" +%s)
+	fi
+else
+	TARGET_DATE=$(date +%s)
+fi
+
+
+# Create new file:
+filename=$DIRECTORY/$TARGET_DATE-${USER}
+if [ -f $filename ]; then
+	is_new=talse
+else
+	is_new=true
+	touch $filename
+	echo >> $filename $'Project: '$PROJECT
+	echo >> $filename $'Task: \n'$TASK $'\n'
+	echo >> $filename $'# Fill out the fields above. Use Project = Break if you were taking a break'
+fi
+
+
+# If we're taking a break from the command line params, the editor doesn't need
+# to be opened for the user and we can quit the program now
+if [[ $is_break == true ]]; then
+	exit 0
+fi
+
+
+
+md5=$(md5sum -t $filename)
+
+# Edit the file
+$EDITOR $filename
+
+# if no changes were made and it's a new file, remove the file
+if [[ $(md5sum -t $filename) == $md5 && $is_new == true ]]; then
+	echo "Unchanged. No entry made"
+	rm $filename
+fi
