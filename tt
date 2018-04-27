@@ -24,34 +24,48 @@ mkdir -p $DIRECTORY
 
 # Set time from args
 PROJECT='?'
+TIMESTAMP=$(date +%s)
 TASK='Replace with a description of what you did'
+USERNAME=${USER}
 
 is_break=false
-if [[ $1 ]]; then
+while [ $1 ]
+do
 	if [[ $1 == "-p" ]]; then
 		echo "Finding Previous"
-		TARGET_DATE=$(ls $DIRECTORY | grep $USER | tail -n1 | sed s/-${USER}$//)
-		if [[ $TARGET_DATE == "" ]]; then
+		TIMESTAMP=$(ls $DIRECTORY | grep $USERNAME | tail -n1 | sed s/-$USERNAME$//)
+		if [[ $TIMESTAMP == "" ]]; then
 			echo "No Previous Entry"
 			exit 1
 		fi
+		shift
+		
+	elif [[ $1 == "-u" ]]; then
+		if [[ $2 && ${2:0:1} != "-" ]]; then
+			USERNAME=$2
+		else
+			echo "What username?"
+			exit 1
+		fi
+		shift 
+		shift
+		
 	elif [[ $1 == "-b" ]]; then
 		echo "Taking a break"
-		TARGET_DATE=$(date +%s)
 		is_break=true
 		PROJECT='Break'
 		TASK=''
+		shift
+		
 	else
-		echo "At time/date $1"
-		TARGET_DATE=$(date -d "$1" +%s)
+		# Anything else is the date
+		TIMESTAMP=$(date -d "$1" +%s)
+		shift
 	fi
-else
-	TARGET_DATE=$(date +%s)
-fi
-
+done
 
 # Create new file:
-filename=$DIRECTORY/$TARGET_DATE-${USER}
+filename=$DIRECTORY/$TIMESTAMP-$USERNAME
 if [ -f $filename ]; then
 	is_new=talse
 else
