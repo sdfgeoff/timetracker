@@ -1,15 +1,13 @@
 #!/bin/sh
 # TimeTracker is a nerd-compliant time tracking system
 # Every time your tt it will open an editor for the previous time area
-# allowing you to describe what you did. After saving it it will open an 
-# editor for the next time period, allowing you to describe what you plan to
-# do. This is saved in a file with the timestamp of the start as the filename.
+# allowing you to describe what you did. 
 # 
 # Optionally you can pass in the time you changed task. This is parsed by 
 # date -d, so can either be a time (eg tt "17:10") or a complete datestring 
 # (eg tt "2017-03-05 17:10"). If it already exists, you will edit the existing
 # entry
-# Additionally you can pass in -r to edit the most recent existing one
+# Additionally you can pass in -e to edit the most recent existing one
 #
 # To indicate that you're not working on anything, leave the field blank
 # Hopefully one day this may also include programs to analyze the time tracked
@@ -23,15 +21,52 @@ mkdir -p $DIRECTORY
 
 
 # Set time from args
-PROJECT='?'
+PROJECT=''
 TIMESTAMP=$(date +%s)
-TASK='Replace with a description of what you did'
 USERNAME=${USER}
+TASK=''
 
 is_break=false
 while [ $1 ]
 do
-	if [[ $1 == "-p" ]]; then
+    if [[ $1 == "-h" ]]; then
+		cat << EOM
+Common arguments.
+-----------------
+ -m  Prefill the message/description. Does not open the editor
+ -d  Prefill the message/description. Does not open the editor
+ -p  Project name. 
+ -u  Set the username.
+ -i  Mark that you were interrupted. This is just for counting for 
+     metrics sake
+
+
+Complete presets.
+-----------------
+ -b  Autofill with the description "BREAK" (project BREAK)
+     This is for when you've been on lunchbreak etc. Does not open the
+     editor
+ -a  Autofill with the description "AWAY"  (project BREAK)
+     This is for when you've been away such as when you first arrive at
+     work. Does not open the editor
+ 
+ 
+Edit Commands
+-------------
+ -e  Edit the most reccent entry.
+
+
+History Commands:
+-----------------
+ -s  Summarize what you did today
+
+Any other arguments are assumed to be the time at which you wanted
+to make the entry. This is parsed using date -d so can either be a 
+time (eg tt "17:10") or a complete datestring (eg tt "2017-03-05 17:10")
+If it already exists, you will edit the existing entry
+EOM
+		exit 1
+	elif [[ $1 == "-e" ]]; then
 		echo "Finding Previous"
 		TIMESTAMP=$(ls $DIRECTORY | grep $USERNAME | tail -n1 | sed s/-$USERNAME$//)
 		if [[ $TIMESTAMP == "" ]]; then
@@ -52,11 +87,46 @@ do
 		
 	elif [[ $1 == "-b" ]]; then
 		echo "Taking a break"
-		is_break=true
-		PROJECT='Break'
+		no_editor=true
+		PROJECT='BREAK'
+		TASK='BREAK'
+		shift
+
+	elif [[ $1 == "-i" ]]; then
+		echo "Interrupted"
+		no_editor=true
+		PROJECT='INTERRUPT'
 		TASK=''
 		shift
-		
+
+	elif [[ $1 == "-a" ]]; then
+		echo "Arrived at work"
+		no_editor=true
+		PROJECT='BREAK'
+		TASK='AWAY'
+		shift
+
+	elif [[ $1 == "-p" ]]; then
+		if [[ $2 && ${2:0:1} != "-" ]]; then
+			PROJECT=$2
+		else
+			echo "What project?"
+			exit 1
+		fi
+		shift
+		shift
+	
+	elif [[ $1 == "-m" || $1 == "-d" ]]; then
+		if [[ $2 && ${2:0:1} != "-" ]]; then
+			TASK=$2
+			$no_editor
+		else
+			echo "What message?"
+			exit 1
+		fi
+		shift
+		shift
+
 	else
 		# Anything else is the date
 		TIMESTAMP=$(date -d "$1" +%s)
@@ -71,15 +141,17 @@ if [ -f $filename ]; then
 else
 	is_new=true
 	touch $filename
-	echo >> $filename $'Project: '$PROJECT
-	echo >> $filename $'Task: \n'$TASK $'\n'
-	echo >> $filename $'# Fill out the fields above. Use Project = Break if you were taking a break'
+	echo >> $filename ${TASK}$'\n'
+	echo >> $filename $'# Describe what you were working on'
+	echo >> $filename $'# Extra data:'
+	echo >> $filename $'project='${PROJECT}
+	echo >> $filename $''
 fi
 
 
 # If we're taking a break from the command line params, the editor doesn't need
 # to be opened for the user and we can quit the program now
-if [[ $is_break == true ]]; then
+if [[ $no_editor == true ]]; then
 	exit 0
 fi
 
